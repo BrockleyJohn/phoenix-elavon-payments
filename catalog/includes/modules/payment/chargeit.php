@@ -457,7 +457,7 @@ EOS;
       // Return error
       $errorMsg = MODULE_PAYMENT_CHARGEIT_DECLINE_HELP_SORRY . $callForHelp;
 
-      $payment_error_return = strip_tags(MODULE_PAYMENT_CHARGEIT_CC_ERROR . '|' . $errorMsg . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME . $_POST['cc_owner'] . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP . $_POST['cc_expires'] . ' (MMYY)');
+      $payment_error_return = MODULE_PAYMENT_CHARGEIT_CC_ERROR . '|' . $errorMsg . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME . $_POST['cc_owner'] . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP . $_POST['cc_expires'] . ' (MMYY)';
       tep_session_register('payment_error_return');
       $_SESSION['payment_error_return'] = $payment_error_return;
       tep_redirect(tep_href_link('checkout_payment.php', 'payment_error=' . $this->code, 'SSL', true, false));
@@ -640,7 +640,7 @@ EOS;
       $message = $errors[1] . $errors[2] . $errors[3] . $errors[4];
       $error = [
         'title' => $errors[0],
-        'error' => $message
+        'error' => strip_tags($message)
       ];
 
       return $error;
