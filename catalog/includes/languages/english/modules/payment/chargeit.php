@@ -20,7 +20,8 @@
 * @version 1.2
 */
 
-  define('MODULE_PAYMENT_CHARGEIT_TEXT_TITLE', 'Credit Card: (' . MODULE_PAYMENT_CHARGEIT_CC_ACCEPTED . ')'); // Credit cards accepted is set in the admin area.
+  define('MODULE_PAYMENT_CHARGEIT_TEXT_TITLE', 'Credit Card Processing by Elavon Virtual Merchant Services'); 
+  define('MODULE_PAYMENT_CHARGEIT_PUBLIC_TITLE', 'Credit Card: (' . (defined('MODULE_PAYMENT_CHARGEIT_CC_ACCEPTED') ? MODULE_PAYMENT_CHARGEIT_CC_ACCEPTED : 'set accepted card types') . ')'); // Credit cards accepted is set in the admin area.
   define('MODULE_PAYMENT_CHARGEIT_TEXT_DESCRIPTION', 'Virtual Merchant Payment Gateway<br /><br /><b>This module does require cURL to be compiled into PHP. Check your phpinfo page for cURL.</b><br /><br />Credit Card Test #:<br />Card: 5000300020003003<br />Expiration: 1209<br />CVV2: 123<br />Any value under $50.00');
   define('MODULE_PAYMENT_CHARGEIT_ERROR_HEADING', 'There has been an error processing your credit card');
   define('MODULE_PAYMENT_CHARGEIT_ERROR_MESSAGE', 'Please check your credit card details!');
@@ -42,7 +43,7 @@
   define('MODULE_PAYMENT_CHARGEIT_TEXT_JS_CC_NUMBER', '* The credit card number must be at least ' . CC_NUMBER_MIN_LENGTH . ' characters.\n');
 
   define('MODULE_PAYMENT_CHARGEIT_CC_ERROR', 'Credit Card Error ');
-  define('MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME', 'Name &amp; Expiration Date Entered: ');
+  define('MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME', 'Name & Expiration Date Entered: ');
   define('MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP', ' - Expiration Date Entered: ');
 
   // Error message text
@@ -55,4 +56,3 @@
   define('MODULE_PAYMENT_CHARGEIT_DECLINE_CALL_HELP1', ' For help processing this order call customer service at ');
   define('MODULE_PAYMENT_CHARGEIT_DECLINE_CALL_HELP2', ' and we will quickly process your order.');
   define('MODULE_PAYMENT_CHARGEIT_DECLINE_HELP_SORRY', 'The card entered is being declined. <b>This most often is due to incorrectly entered information.</b> Please try re-entering your information.');
-?>

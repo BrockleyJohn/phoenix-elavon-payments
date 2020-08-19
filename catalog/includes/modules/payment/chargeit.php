@@ -13,6 +13,9 @@
 * an administrator.
 *************************************************************************
 *
+* version 2.0 for OSCOM Phoenix August 2020
+* John Ferguson @BrockleyJohn oscommerce@sewebsites.net
+*
 * @package ChargeIt
 * @link http://www.joomecom.com/ Ecommerce Applications
 * @copyright Copyright 2008, Teradigm, Inc. All Rights Reserved.
@@ -24,15 +27,15 @@
 * @replace ereg_replace() with preg_replace()
 */
 
-class ChargeIt {
+class chargeit {
   var $code, $title, $description, $enabled, $submit_data, $resubmitted, $responseAry, $internationalOrder, $avsResponseAry, $cvvResponseAry, $maxFieldLenAry, $testAry;
 
-
-  function ChargeIt() {
+  function __construct() {
     global $order;
 
     $this->code = 'chargeit';
     $this->title = MODULE_PAYMENT_CHARGEIT_TEXT_TITLE;
+    $this->public_title = MODULE_PAYMENT_CHARGEIT_PUBLIC_TITLE;
     $this->description = MODULE_PAYMENT_CHARGEIT_TEXT_DESCRIPTION;
 
     $this->sort_order = MODULE_PAYMENT_CHARGEIT_SORT_ORDER;
@@ -46,9 +49,9 @@ class ChargeIt {
       $this->update_status();
     }
 
-    $this->form_action_url = tep_href_link(FILENAME_CHECKOUT_PROCESS, '', 'SSL', true); // checkout_process.php - page to go to on completion
+    $this->form_action_url = tep_href_link('checkout_process.php', '', 'SSL', true); // checkout_process.php - page to go to on completion
     $this->virtual_merchant_url = 'https://www.myvirtualmerchant.com/VirtualMerchant/process.do';
-    $this->curl_referer = MODULE_PAYMENT_CHARGEIT_REFERER_URL;
+  //  $this->curl_referer = tep_href_link('checkout_confirmation.php');
     $this->submit_data = array(); // Array type used to prep transaction params for cURL post to virtual merchant
     $this->resubmitted = false; // Boolean used to test if transaction has been resubmitted.
     $this->responseAry = array(); // Array type used to capture virtual merchant results and error messages
@@ -85,30 +88,30 @@ class ChargeIt {
 
     $this->maxFieldLenAry = array(
       // Billing Info Max Lengths
-      ssl_first_name => 20,
-      ssl_last_name => 30,
-      ssl_company => 50,
-      ssl_avs_address => 20,
-      ssl_address2 => 20,
-      ssl_city => 30,
-      ssl_state => 30,
-      ssl_avs_zip => 9,
-      ssl_country => 50,
+      'ssl_first_name' => 20,
+      'ssl_last_name' => 30,
+      'ssl_company' => 50,
+      'ssl_avs_address' => 20,
+      'ssl_address2' => 20,
+      'ssl_city' => 30,
+      'ssl_state' => 30,
+      'ssl_avs_zip' => 9,
+      'ssl_country' => 50,
 
       // Contact Info
-      ssl_phone => 20,
-      ssl_email => 100,
+      'ssl_phone' => 20,
+      'ssl_email' => 100,
 
       // Shipping Info
-      ssl_ship_to_company => 50,
-      ssl_ship_to_first_name => 20,
-      ssl_ship_to_last_name => 30,
-      ssl_ship_to_avs_address => 20,
-      ssl_ship_to_address2 => 20,
-      ssl_ship_to_city => 30,
-      ssl_ship_to_state => 30,
-      ssl_ship_to_avs_zip => 9,
-      ssl_ship_to_country => 50
+      'ssl_ship_to_company' => 50,
+      'ssl_ship_to_first_name' => 20,
+      'ssl_ship_to_last_name' => 30,
+      'ssl_ship_to_avs_address' => 20,
+      'ssl_ship_to_address2' => 20,
+      'ssl_ship_to_city' => 30,
+      'ssl_ship_to_state' => 30,
+      'ssl_ship_to_avs_zip' => 9,
+      'ssl_ship_to_country' => 50
     );
 
   }
@@ -119,7 +122,7 @@ class ChargeIt {
 
     if ( ($this->enabled == true) && ((int)MODULE_PAYMENT_CHARGEIT_ZONE > 0) ) {
       $check_flag = false;
-      $check_query = tep_db_query("select zone_id from " . TABLE_ZONES_TO_GEO_ZONES . " where geo_zone_id = '" . MODULE_PAYMENT_CHARGEIT_ZONE . "' and zone_country_id = '" . $order->billing['country']['id'] . "' order by zone_id");
+      $check_query = tep_db_query("select zone_id from zones_to_geo_zones where geo_zone_id = '" . MODULE_PAYMENT_CHARGEIT_ZONE . "' and zone_country_id = '" . $order->billing['country']['id'] . "' order by zone_id");
 
       while ($check = tep_db_fetch_array($check_query)) {
         if ($check['zone_id'] < 1) {
@@ -141,6 +144,22 @@ class ChargeIt {
 
 
   function javascript_validation() {
+    global $oscTemplate;
+    $script = <<<EOS
+<script>
+function returnObjById( id )
+{
+  if (document.getElementById)
+    var returnVar = document.getElementById(id);
+  else if (document.all)
+    var returnVar = document.all[id];
+  else if (document.layers)
+   var returnVar = document.layers[id];
+  return returnVar;
+}
+</script>
+EOS;
+    $oscTemplate->addBlock($script, 'footer_scripts');
     $js =   '  if (payment_value == "' . $this->code . '") {' . "\n" .
             '    var cc_owner = returnObjById(\'cc_owner\');' . "\n" .
             '    var cc_number = returnObjById(\'cc_number\');' . "\n" .
@@ -195,7 +214,7 @@ class ChargeIt {
     }
 
     $selection = array('id' => $this->code,
-                       'module' => $this->title,
+                       'module' => $this->public_title,
                        'fields' => array(array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_OWNER,
                         'field' => tep_draw_input_field('cc_owner', $order->billing['firstname'] . ' ' . $order->billing['lastname'], 'id="cc_owner"')),
                  array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_NUMBER,
@@ -210,11 +229,10 @@ class ChargeIt {
 
 
   function pre_confirmation_check() {
-    global $HTTP_POST_VARS;
-    include(DIR_WS_CLASSES . 'chargeit_cc_validation.php');
+    include_once('includes/classes/chargeit_cc_validation.php');
 
     $chargeit_cc_validation = new chargeit_cc_validation();
-    $result = $chargeit_cc_validation->validate($HTTP_POST_VARS['cc_number'], $HTTP_POST_VARS['cc_expires_month'], $HTTP_POST_VARS['cc_expires_year']);
+    $result = $chargeit_cc_validation->validate($_POST['cc_number'], $_POST['cc_expires_month'], $_POST['cc_expires_year']);
 
     $error = '';
     switch ($result) {
@@ -238,7 +256,7 @@ class ChargeIt {
       $payment_error_return = MODULE_PAYMENT_CHARGEIT_CC_ERROR . '|' . $error . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME . $_POST['cc_owner'] . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP . $_POST['cc_expires_month'] . '/' . $_POST['cc_expires_year'];
       tep_session_register('payment_error_return');
       $_SESSION['payment_error_return'] = $payment_error_return;
-      tep_redirect(tep_href_link(FILENAME_CHECKOUT_PAYMENT, '', 'SSL', true, false));
+      tep_redirect(tep_href_link('checkout_payment.php', 'payment_error=' . $this->code, 'SSL', true, false));
     }
 
     $this->cc_card_type = $chargeit_cc_validation->cc_type;
@@ -249,16 +267,15 @@ class ChargeIt {
 
 
   function confirmation() {
-    global $HTTP_POST_VARS;
 
     //detect if they put in a valid cvv and set indicator
 
-//    if (ereg ("(^[0-9][0-9][0-9]$|^[0-9][0-9][0-9][0-9]$)", $HTTP_POST_VARS['cvv_number']) == 1){
+//    if (ereg ("(^[0-9][0-9][0-9]$|^[0-9][0-9][0-9][0-9]$)", $_POST['cvv_number']) == 1){
 
-    if (preg_match('/^[0-9][0-9][0-9]$|^[0-9][0-9][0-9][0-9]$/', $HTTP_POST_VARS['cvv_number'])) {
+    if (preg_match('/^[0-9][0-9][0-9]$|^[0-9][0-9][0-9][0-9]$/', $_POST['cvv_number'])) {
 
 
-      $this->cvv_number = $HTTP_POST_VARS['cvv_number'];
+      $this->cvv_number = $_POST['cvv_number'];
       $this->cvv_indicator = 1;
     } else {
       $this->cvv_number = '';
@@ -268,22 +285,22 @@ class ChargeIt {
     if ($this->cvv_indicator == 1) {
       $confirmation = array('title' => $this->title . ': ' . $this->cc_card_type,
                             'fields' => array(array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_OWNER,
-                            'field' => $HTTP_POST_VARS['cc_owner']),
+                            'field' => $_POST['cc_owner']),
                       array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_NUMBER,
                             'field' => substr($this->cc_card_number, 0, 4) . str_repeat('X', (strlen($this->cc_card_number) - 8)) . substr($this->cc_card_number, -4)),
                       array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CVV_NUMBER,
                             'field' => $this->cvv_number),
                       array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_EXPIRES,
-                            'field' => strftime('%B, %Y', mktime(0,0,0,$HTTP_POST_VARS['cc_expires_month'], 1, '20' . $HTTP_POST_VARS['cc_expires_year'])))));
+                            'field' => strftime('%B, %Y', mktime(0,0,0,$_POST['cc_expires_month'], 1, '20' . $_POST['cc_expires_year'])))));
 
     } else {
       $confirmation = array('title' => $this->title . ': ' . $this->cc_card_type,
                             'fields' => array(array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_OWNER,
-                            'field' => $HTTP_POST_VARS['cc_owner']),
+                            'field' => $_POST['cc_owner']),
                       array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_NUMBER,
                             'field' => substr($this->cc_card_number, 0, 4) . str_repeat('X', (strlen($this->cc_card_number) - 8)) . substr($this->cc_card_number, -4)),
                       array('title' => MODULE_PAYMENT_CHARGEIT_TEXT_CREDIT_CARD_EXPIRES,
-                            'field' => strftime('%B, %Y', mktime(0,0,0,$HTTP_POST_VARS['cc_expires_month'], 1, '20' . $HTTP_POST_VARS['cc_expires_year'])))));
+                            'field' => strftime('%B, %Y', mktime(0,0,0,$_POST['cc_expires_month'], 1, '20' . $_POST['cc_expires_year'])))));
     }
 
     return $confirmation;
@@ -291,6 +308,7 @@ class ChargeIt {
 
 
   function process_button() {
+    global $PHP_SELF;
     // Hidden fields on the checkout confirmation page
     $process_button_string = tep_draw_hidden_field('cc_owner', $_POST['cc_owner']) .
                              tep_draw_hidden_field('cc_expires', $this->cc_expires_month . substr($this->cc_expires_year, -2)) .
@@ -298,6 +316,7 @@ class ChargeIt {
                              tep_draw_hidden_field('cc_number', $this->cc_card_number) .
                              tep_draw_hidden_field('cvv_number', $this->cvv_number) .
                              tep_draw_hidden_field('cvv_indicator', $this->cvv_indicator) .
+                             tep_draw_hidden_field('referrer', basename($PHP_SELF)) .
                              tep_draw_hidden_field(tep_session_name(), tep_session_id());
 
     return $process_button_string;
@@ -306,9 +325,7 @@ class ChargeIt {
 
   function cURLDataStream($transaction_data) {
     // concatenate the submission data and put into variable $data
-    while(list($key, $value) = each($transaction_data)) {
-
-//      $data .= $key . '=' . urlencode(ereg_replace(',', '', $value)) . '&';
+    foreach($transaction_data as $key => $value) {
 
       $data .= $key . '=' . urlencode(preg_replace('/,/', '', $value)) . '&';
 
@@ -325,7 +342,7 @@ class ChargeIt {
     curl_setopt($ch, CURLOPT_URL, $this->virtual_merchant_url); // url set in constructor
     curl_setopt($ch, CURLOPT_VERBOSE, 1);
     curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_REFERER, $this->curl_referer);
+    curl_setopt($ch, CURLOPT_REFERER, tep_href_link($_POST['referrer']));
     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
     $authorize = curl_exec($ch);
@@ -440,22 +457,22 @@ class ChargeIt {
       // Return error
       $errorMsg = MODULE_PAYMENT_CHARGEIT_DECLINE_HELP_SORRY . $callForHelp;
 
-      $payment_error_return = MODULE_PAYMENT_CHARGEIT_CC_ERROR . '|' . $errorMsg . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME . $_POST['cc_owner'] . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP . $_POST['cc_expires'] . ' (MMYY)';
+      $payment_error_return = strip_tags(MODULE_PAYMENT_CHARGEIT_CC_ERROR . '|' . $errorMsg . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_NAME . $_POST['cc_owner'] . '|' . MODULE_PAYMENT_CHARGEIT_CC_ERROR_EXP . $_POST['cc_expires'] . ' (MMYY)');
       tep_session_register('payment_error_return');
       $_SESSION['payment_error_return'] = $payment_error_return;
-      tep_redirect(tep_href_link(FILENAME_CHECKOUT_PAYMENT, '', 'SSL', true, false));
+      tep_redirect(tep_href_link('checkout_payment.php', 'payment_error=' . $this->code, 'SSL', true, false));
     }
   }
 
 
   function before_process() {
-    global $_POST, $order;
+    global $order;
 
     // DATA PREPARATION SECTION
     unset($this->submit_data);  // Cleans out any previous data stored in the variable
 
     // Create an array containing products ordered for the description field
-    $description = '';
+    $description = [];
     for ($i=0; $i < sizeof($order->products); $i++) {
       $description[] = $order->products[$i]['name'] . '(qty: ' . $order->products[$i]['qty'] . ')';
     }
@@ -463,8 +480,8 @@ class ChargeIt {
     // implode array into | delimited string for description of transaction
     $description = implode('|', $description);
 
-    // Calculate the next expected order id
-    $next_order_id = "select (max(orders_id) + 1) as next_id from " . TABLE_ORDERS;
+    // predict the next expected order id
+    $next_order_id = "select (max(orders_id) + 1) as next_id from orders";
     $result = tep_db_query ($next_order_id);
     while ($row = tep_db_fetch_array($result)) {
       $new_order_id = $row['next_id'];
@@ -486,6 +503,7 @@ class ChargeIt {
 
     // clean $_POST
     $ssl_card_number = strip_tags($_POST['cc_number']);
+//    $ssl_card_number = '4159288888888881'; // for testing, force rejection
     $ssl_exp_date = strip_tags($_POST['cc_expires']);
     $ssl_cvv2cvc2_indicator = strip_tags($_POST['cvv_indicator']);
     $ssl_cvv2cvc2 = strip_tags($_POST['cvv_number']);
@@ -493,48 +511,48 @@ class ChargeIt {
     // Populate an array that contains all of the data to be submitted
     $this->submit_data = array (
       // Transaction settings
-      ssl_merchant_id => MODULE_PAYMENT_CHARGEIT_ACCOUNT_ID, // The login name as assigned to you by Virtual Merchant
-      ssl_user_id => MODULE_PAYMENT_CHARGEIT_USER_ID, // The login name you setup for your automated web transaction user
-      ssl_pin => MODULE_PAYMENT_CHARGEIT_PIN, // The pin that was auto assigned to this new user
-      ssl_transaction_type => 'CCSALE',
-      ssl_show_form => 'FALSE', // Process transaction directly
-      ssl_result_format => 'ASCII', // DO NOT CHANGE. The formatting type for result messages from Virtual Merchant
+      'ssl_merchant_id' => MODULE_PAYMENT_CHARGEIT_ACCOUNT_ID, // The login name as assigned to you by Virtual Merchant
+      'ssl_user_id' => MODULE_PAYMENT_CHARGEIT_USER_ID, // The login name you setup for your automated web transaction user
+      'ssl_pin' => MODULE_PAYMENT_CHARGEIT_PIN, // The pin that was auto assigned to this new user
+      'ssl_transaction_type' => 'CCSALE',
+      'ssl_show_form' => 'FALSE', // Process transaction directly
+      'ssl_result_format' => 'ASCII', // DO NOT CHANGE. The formatting type for result messages from Virtual Merchant
 
       // Transaction Info
-      ssl_amount => number_format($order->info['total'], 2),
-      ssl_card_number => $ssl_card_number,
-      ssl_exp_date => $ssl_exp_date,
-      ssl_customer_code => $_SESSION['customer_id'],
-      invoice_number => $new_order_id,
+      'ssl_amount' => number_format($order->info['total'], 2),
+      'ssl_card_number' => $ssl_card_number,
+      'ssl_exp_date' => $ssl_exp_date,
+      'ssl_customer_code' => $_SESSION['customer_id'],
+      'invoice_number' => $new_order_id,
 
       // Billing Info
-      ssl_first_name => substr($order->billing['firstname'], 0, $this->maxFieldLenAry['ssl_first_name']),
-      ssl_last_name => substr($order->billing['lastname'], 0, $this->maxFieldLenAry['ssl_last_name']),
-      ssl_company => substr($order->billing['company'], 0, $this->maxFieldLenAry['ssl_company']),
-      ssl_avs_address => substr($order->billing['street_address'], 0, $this->maxFieldLenAry['ssl_avs_address']), // Virtual merchant only accepts addresses up to 20 characters
-      ssl_address2 => substr($billToStreetAddress2, 0, $this->maxFieldLenAry['ssl_address2']), // Virtual merchant only accepts addresses up to 20 characters
-      ssl_city => substr($order->billing['city'], 0, $this->maxFieldLenAry['ssl_city']),
-      ssl_state => substr($billingState, 0, $this->maxFieldLenAry['ssl_state']),
-      ssl_avs_zip => substr($sslAVSZip, 0, $this->maxFieldLenAry['ssl_avs_zip']),
-      ssl_country => substr($order->billing['country']['title'], 0, $this->maxFieldLenAry['ssl_country']),
+      'ssl_first_name' => substr($order->billing['firstname'], 0, $this->maxFieldLenAry['ssl_first_name']),
+      'ssl_last_name' => substr($order->billing['lastname'], 0, $this->maxFieldLenAry['ssl_last_name']),
+      'ssl_company' => substr($order->billing['company'], 0, $this->maxFieldLenAry['ssl_company']),
+      'ssl_avs_address' => substr($order->billing['street_address'], 0, $this->maxFieldLenAry['ssl_avs_address']), // Virtual merchant only accepts addresses up to 20 characters
+      'ssl_address2' => substr($billToStreetAddress2, 0, $this->maxFieldLenAry['ssl_address2']), // Virtual merchant only accepts addresses up to 20 characters
+      'ssl_city' => substr($order->billing['city'], 0, $this->maxFieldLenAry['ssl_city']),
+      'ssl_state' => substr($billingState, 0, $this->maxFieldLenAry['ssl_state']),
+      'ssl_avs_zip' => substr($sslAVSZip, 0, $this->maxFieldLenAry['ssl_avs_zip']),
+      'ssl_country' => substr($order->billing['country']['title'], 0, $this->maxFieldLenAry['ssl_country']),
 
       // Contact Info
-      ssl_phone => substr($order->customer['telephone'], 0, $this->maxFieldLenAry['ssl_phone']),
-      ssl_email => $sslEmail,
+      'ssl_phone' => substr($order->customer['telephone'], 0, $this->maxFieldLenAry['ssl_phone']),
+      'ssl_email' => $sslEmail,
 
       // Shipping Info
-      ssl_ship_to_company => $order->delivery['company'],
-      ssl_ship_to_first_name => substr($order->delivery['firstname'], 0, $this->maxFieldLenAry['ssl_ship_to_first_name']),
-      ssl_ship_to_last_name => substr($order->delivery['lastname'], 0, $this->maxFieldLenAry['ssl_ship_to_last_name']),
-      ssl_ship_to_avs_address => substr($order->delivery['street_address'], 0, $this->maxFieldLenAry['ssl_ship_to_avs_address']),
-      ssl_ship_to_address2 => substr($shipToStreetAddress2, 0, $this->maxFieldLenAry['ssl_ship_to_address2']),
-      ssl_ship_to_city => substr($order->delivery['city'], 0, $this->maxFieldLenAry['ssl_ship_to_city']),
-      ssl_ship_to_state => substr($deliveryState, 0, $this->maxFieldLenAry['ssl_ship_to_state']),
-      ssl_ship_to_avs_zip => substr($order->delivery['postcode'], 0, $this->maxFieldLenAry['ssl_ship_to_avs_zip']),
-      ssl_ship_to_country => substr($order->delivery['country']['title'], 0, $this->maxFieldLenAry['ssl_ship_to_country']),
+      'ssl_ship_to_company' => $order->delivery['company'],
+      'ssl_ship_to_first_name' => substr($order->delivery['firstname'], 0, $this->maxFieldLenAry['ssl_ship_to_first_name']),
+      'ssl_ship_to_last_name' => substr($order->delivery['lastname'], 0, $this->maxFieldLenAry['ssl_ship_to_last_name']),
+      'ssl_ship_to_avs_address' => substr($order->delivery['street_address'], 0, $this->maxFieldLenAry['ssl_ship_to_avs_address']),
+      'ssl_ship_to_address2' => substr($shipToStreetAddress2, 0, $this->maxFieldLenAry['ssl_ship_to_address2']),
+      'ssl_ship_to_city' => substr($order->delivery['city'], 0, $this->maxFieldLenAry['ssl_ship_to_city']),
+      'ssl_ship_to_state' => substr($deliveryState, 0, $this->maxFieldLenAry['ssl_ship_to_state']),
+      'ssl_ship_to_avs_zip' => substr($order->delivery['postcode'], 0, $this->maxFieldLenAry['ssl_ship_to_avs_zip']),
+      'ssl_ship_to_country' => substr($order->delivery['country']['title'], 0, $this->maxFieldLenAry['ssl_ship_to_country']),
 
       // Products purchased summary
-      ssl_description => $description
+      'ssl_description' => $description
     );
 
     // If cvv2 is not required and no cvv2 number was passed then set indicator to "Not Present" - 0 = Bypassed, 1 = Present, 2 = Illegible, 9 = Not Present
@@ -609,18 +627,30 @@ class ChargeIt {
 
 
   function after_process() {
+    tep_session_unregister('payment_error_return');
     return false;
   }
 
 
   function get_error() {
-    return false;
+    if (tep_session_is_registered('payment_error_return') && !empty($_SESSION['payment_error_return'])) {
+      
+      $errors = explode('|',$_SESSION['payment_error_return']);
+    
+      $message = $errors[1] . $errors[2] . $errors[3] . $errors[4];
+      $error = [
+        'title' => $errors[0],
+        'error' => $message
+      ];
+
+      return $error;
+    }
   }
 
 
   function check() {
     if (!isset($this->_check)) {
-      $check_query = tep_db_query("select configuration_value from " . TABLE_CONFIGURATION . " where configuration_key = 'MODULE_PAYMENT_CHARGEIT_STATUS'");
+      $check_query = tep_db_query("select configuration_value from configuration where configuration_key = 'MODULE_PAYMENT_CHARGEIT_STATUS'");
       $this->_check = tep_db_num_rows($check_query);
     }
 
@@ -629,40 +659,40 @@ class ChargeIt {
 
 
   function install() {
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable Virtual Merchant Module', 'MODULE_PAYMENT_CHARGEIT_STATUS', 'True', 'Do you want to accept Virtual Merchant payments?', '6', '1', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable Virtual Merchant Module', 'MODULE_PAYMENT_CHARGEIT_STATUS', 'True', 'Do you want to accept Virtual Merchant payments?', '6', '1', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Virtual Merchant Account ID', 'MODULE_PAYMENT_CHARGEIT_ACCOUNT_ID', '0', 'The Account ID for your Virtual Merchant Account', '6', '2', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Virtual Merchant Account ID', 'MODULE_PAYMENT_CHARGEIT_ACCOUNT_ID', '0', 'The Account ID for your Virtual Merchant Account', '6', '2', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('User ID', 'MODULE_PAYMENT_CHARGEIT_USER_ID', '0', 'The User ID for your Virtual Merchant Account User', '6', '3', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('User ID', 'MODULE_PAYMENT_CHARGEIT_USER_ID', '0', 'The User ID for your Virtual Merchant Account User', '6', '3', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('User PIN', 'MODULE_PAYMENT_CHARGEIT_PIN', '0', 'The User PIN for your Virtual Merchant Account', '6', '4', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('User PIN', 'MODULE_PAYMENT_CHARGEIT_PIN', '0', 'The User PIN for your Virtual Merchant Account', '6', '4', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Set Referer URL', 'MODULE_PAYMENT_CHARGEIT_REFERER_URL', 'https://secure.yoursite.com/checkout_confirmation.php', 'Set the authorized referer url you set in your Virtual Terminal Merchant Account.', '6', '5', now())");
+//    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Set Referer URL', 'MODULE_PAYMENT_CHARGEIT_REFERER_URL', 'https://secure.yoursite.com/checkout_confirmation.php', 'Set the authorized referer url you set in your Virtual Terminal Merchant Account.', '6', '5', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction mode', 'MODULE_PAYMENT_CHARGEIT_TESTMODE', 'Test', 'Transaction mode used for processing orders', '6', '6', 'tep_cfg_select_option(array(\'Test\', \'Production\'), ', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction mode', 'MODULE_PAYMENT_CHARGEIT_TESTMODE', 'Test', 'Transaction mode used for processing orders', '6', '6', 'tep_cfg_select_option(array(\'Test\', \'Production\'), ', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Sort order of display.', 'MODULE_PAYMENT_CHARGEIT_SORT_ORDER', '0', 'Sort order of display. Lowest is displayed first.', '6', '7', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Sort order of display.', 'MODULE_PAYMENT_CHARGEIT_SORT_ORDER', '0', 'Sort order of display. Lowest is displayed first.', '6', '7', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, use_function, set_function, date_added) values ('Payment Zone', 'MODULE_PAYMENT_CHARGEIT_ZONE', '0', 'If a zone is selected, only enable this payment method for that zone.', '6', '8', 'tep_get_zone_class_title', 'tep_cfg_pull_down_zone_classes(', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, use_function, set_function, date_added) values ('Payment Zone', 'MODULE_PAYMENT_CHARGEIT_ZONE', '0', 'If a zone is selected, only enable this payment method for that zone.', '6', '8', 'tep_get_zone_class_title', 'tep_cfg_pull_down_zone_classes(', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set order status', 'MODULE_PAYMENT_CHARGEIT_ORDER_STATUS_ID', '0', 'Set the status of orders made with this payment module to this value', '6', '9', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set order status', 'MODULE_PAYMENT_CHARGEIT_ORDER_STATUS_ID', '0', 'Set the status of orders made with this payment module to this value', '6', '9', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable email errors to admin email below', 'MODULE_PAYMENT_CHARGEIT_EMAIL_ERRORS', 'False', 'Do you want to receive error emails from Virtual Merchant?', '6', '10', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable email errors to admin email below', 'MODULE_PAYMENT_CHARGEIT_EMAIL_ERRORS', 'False', 'Do you want to receive error emails from Virtual Merchant?', '6', '10', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Admin email', 'MODULE_PAYMENT_CHARGEIT_ADMIN_EMAIL', 'me@mydomain.com', 'The email address to send Virtual Merchant error messages to.', '6', '11', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Admin email', 'MODULE_PAYMENT_CHARGEIT_ADMIN_EMAIL', '" . STORE_OWNER_EMAIL_ADDRESS . "', 'The email address to send Virtual Merchant error messages to.', '6', '11', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Call Number for Help', 'MODULE_PAYMENT_CHARGEIT_DECLINE_HELP', '800-111-2222', 'The number users can call if they are being declined. Remove number to not display a number.', '6', '12', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Call Number for Help', 'MODULE_PAYMENT_CHARGEIT_DECLINE_HELP', '800-111-2222', 'The number users can call if they are being declined. Remove number to not display a number.', '6', '12', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Credit cards accepted', 'MODULE_PAYMENT_CHARGEIT_CC_ACCEPTED', 'Visa, Mastercard, Amex, Discover', 'The credit cards you accept through your Virtual Merchant Account.', '6', '13', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Credit cards accepted', 'MODULE_PAYMENT_CHARGEIT_CC_ACCEPTED', 'Visa, Mastercard, Amex, Discover', 'The credit cards you accept through your Virtual Merchant Account.', '6', '13', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Set CVV2 to Required', 'MODULE_PAYMENT_CHARGEIT_CVV_REQUIRED', 'False', 'Do you want the cvv2 number to be required?', '6', '14', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Set CVV2 to Required', 'MODULE_PAYMENT_CHARGEIT_CVV_REQUIRED', 'False', 'Do you want the cvv2 number to be required?', '6', '14', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
 
-    tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable DCC', 'MODULE_PAYMENT_CHARGEIT_DCC', 'False', 'Do you want send International orders via DCC program?', '6', '15', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
+    tep_db_query("insert into configuration (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Enable DCC', 'MODULE_PAYMENT_CHARGEIT_DCC', 'False', 'Do you want send International orders via DCC program?', '6', '15', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
   }
 
 
   function remove() {
-    tep_db_query("delete from " . TABLE_CONFIGURATION . " where configuration_key in ('" . implode("', '", $this->keys()) . "')");
+    tep_db_query("delete from configuration where configuration_key in ('" . implode("', '", $this->keys()) . "')");
   }
 
 
@@ -673,7 +703,7 @@ class ChargeIt {
                  'MODULE_PAYMENT_CHARGEIT_PIN', 
                  'MODULE_PAYMENT_CHARGEIT_TESTMODE',
                  'MODULE_PAYMENT_CHARGEIT_ZONE', 
-                 'MODULE_PAYMENT_CHARGEIT_REFERER_URL', 
+ //                'MODULE_PAYMENT_CHARGEIT_REFERER_URL', 
                  'MODULE_PAYMENT_CHARGEIT_ORDER_STATUS_ID', 
                  'MODULE_PAYMENT_CHARGEIT_SORT_ORDER', 
                  'MODULE_PAYMENT_CHARGEIT_EMAIL_ERRORS', 
@@ -795,4 +825,3 @@ class ChargeIt {
   }
 }
 
-?>
